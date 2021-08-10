@@ -29,7 +29,7 @@ def encode_segmentation_rgb(segmentation, tgt_idx, mask_root, no_neck=True):
     valid_index = np.where(parse==hair_id)
     hair_map[valid_index] = 255
     '''
-    file_list = glob.glob(os.path.join(mask_root, "**/{0:05d}**.png".format(tgt_idx)), recursive=True)
+    file_list = glob.glob(os.path.join(mask_root, "*"))
     name_list = [0 for i in range(len(file_list))]
 
     tgt_face_mask = np.zeros([segmentation.shape[0], segmentation.shape[1]])
@@ -40,7 +40,7 @@ def encode_segmentation_rgb(segmentation, tgt_idx, mask_root, no_neck=True):
         file_1 = file.split('_')
         name_list[file_list.index(file)] = file_1[-1]
         split = os.path.splitext(file_1[-1])
-        if split[0] == 'skin':
+        if split[0] == 'face':
             tgt_face_mask = cv2.imread(file)
         if split[0] == 'mouth':
             tgt_mouth_mask = cv2.imread(file)
@@ -85,12 +85,15 @@ class SoftErosion(nn.Module):
         return x, mask
 
 class MegaFS(object):
-    def __init__(self, swap_type, img_root, mask_root):
+    def __init__(self, swap_type, img_root, mask_root, src_image_path, dst_image_path, dst_mask_path):
         # Inference Parameters
         self.size = 1024
         self.swap_type = swap_type
         self.img_root = img_root
         self.mask_root = mask_root
+        self.src_image_path = src_image_path
+        self.dst_image_path = dst_image_path
+        self.dst_mask_path = dst_mask_path
 
         # Model
         # "ftm"    "injection"     "lcr"
@@ -123,13 +126,13 @@ class MegaFS(object):
         self.generator.eval()
     
     def read_pair(self, src_idx, tgt_idx):
-        src_face = cv2.imread(os.path.join(self.img_root, "{}.jpg".format(src_idx)))
-        tgt_face = cv2.imread(os.path.join(self.img_root, "{}.jpg".format(tgt_idx)))
+        src_face = cv2.imread(glob.glob(os.path.join(self.src_image_path, "*"))[0])
+        tgt_face = cv2.imread(glob.glob(os.path.join(self.dst_image_path, "*.*"))[0])
         #tgt_mask  = cv2.imread(os.path.join(self.mask_root, "{}.png".format(tgt_idx)))
 
         src_face_rgb = src_face[:, :, ::-1]
         tgt_face_rgb = tgt_face[:, :, ::-1]
-        tgt_mask = encode_segmentation_rgb(tgt_face, tgt_idx, self.mask_root)
+        tgt_mask = encode_segmentation_rgb(tgt_face, tgt_idx, self.dst_mask_path)
         print(tgt_mask.shape)
         return src_face_rgb, tgt_face_rgb, tgt_mask
 
@@ -213,8 +216,16 @@ if __name__ == "__main__":
     parser.add_argument("--mask_root", type=str, default="/data/yuhao.zhu/CelebAMaskHQ-mask")
     parser.add_argument("--srcID", type=int, default=2332)
     parser.add_argument("--tgtID", type=int, default=2107)
+    parser.add_argument("--src_image_path", type=str)
+    parser.add_argument("--dst_image_path", type=str)
+    parser.add_argument("--dst_mask_path", type=str)
 
     args = parser.parse_args()
-    handler = MegaFS(args.swap_type, args.img_root, args.mask_root)
+    handler = MegaFS(args.swap_type,
+                     args.img_root,
+                     args.mask_root,
+                     args.src_image_path,
+                     args.dst_image_path,
+                     args.dst_mask_path)
     handler.run(args.srcID, args.tgtID)
   
